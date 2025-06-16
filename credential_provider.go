@@ -86,7 +86,7 @@ func (c *CredentialProvider) Retrieve(ctx context.Context) (aws.Credentials, err
 		mockTime:        nil,
 	}
 
-	createSessionResponse, err := CreateSession(context.TODO(), c.httpClient, c.region, createSessionRequest, c.signer)
+	createSessionResponse, err := CreateSession(ctx, c.httpClient, c.region, createSessionRequest, c.signer)
 	if err != nil {
 		return aws.Credentials{}, err
 	}
