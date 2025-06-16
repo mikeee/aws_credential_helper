@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestE2E(t *testing.T) {
@@ -76,6 +77,9 @@ func TestE2E(t *testing.T) {
 			creds, err := cfg.Credentials.Retrieve(context.Background())
 			require.NoError(t, err, "expected no error when retrieving credentials from the config")
 			assert.NotEmpty(t, creds.AccessKeyID, "expected non-empty AccessKeyID from the credentials")
+
+			// assert the expiration is around 60 minutes
+			assert.Greater(t, creds.Expires.Sub(time.Now()), time.Hour-10*time.Minute, "expected credentials to expire in more than 50 minutes")
 		})
 
 		t.Run("S3 List Buckets", func(t *testing.T) {
