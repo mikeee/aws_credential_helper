@@ -74,12 +74,13 @@ func TestE2E(t *testing.T) {
 		assert.NotNil(t, cfg)
 
 		t.Run("Credential Test", func(t *testing.T) {
+			start := time.Now()
 			creds, err := cfg.Credentials.Retrieve(context.Background())
 			require.NoError(t, err, "expected no error when retrieving credentials from the config")
 			assert.NotEmpty(t, creds.AccessKeyID, "expected non-empty AccessKeyID from the credentials")
 
 			// assert the expiration is around 60 minutes
-			assert.Greater(t, creds.Expires.Sub(time.Now()), time.Hour-10*time.Minute, "expected credentials to expire in more than 50 minutes")
+			assert.Greater(t, creds.Expires.Sub(start), time.Hour-10*time.Minute, "expected credentials to expire in more than 50 minutes")
 		})
 
 		t.Run("S3 List Buckets", func(t *testing.T) {
