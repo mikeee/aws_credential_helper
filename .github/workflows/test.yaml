@@ -1,0 +1,60 @@
+name: Test
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 7 * * 0' # Every Sunday at 07:00 UTC
+
+jobs:
+  aio:
+    name: Test (aio)
+    runs-on: ubuntu-latest
+
+    env:
+      CGO_ENABLED: 0 # Explicitly disable CGO to ensure a pure Go build
+      GOLANGCILINT_VERSION: v2.1.2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: './go.mod'
+
+      - name: Download deps
+        run: |
+          go mod download
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: ${{ env.GOLANGCILINT_VERSION }}
+          skip-cache: true
+          args: --timeout=10m
+
+      - name: Test
+        run: |
+          make test
+
+      - name: Test (E2E)
+        env:
+          E2E_CERT: ${{ secrets.E2E_CERT }}
+          E2E_KEY: ${{ secrets.E2E_CERT_PRIVATE_KEY }}
+          E2E_ASSUME_ROLE_ARN: ${{ secrets.E2E_ASSUME_ROLE_ARN }}
+          E2E_TRUST_ANCHOR_ARN: ${{ secrets.E2E_TRUST_ANCHOR_ARN }}
+          E2E_TRUST_PROFILE_ARN: ${{ secrets.E2E_TRUST_PROFILE_ARN }}
+        run: |
+          make test-e2e
+
+# TODO: Tomorrow mike problem
+#      - name: Upload coverage to Codecov
+#        uses: codecov/codecov-action@v5
+#        with:
+#          files: ./coverage.out
+#          token: ${{ secrets.CODECOV_TOKEN }}
