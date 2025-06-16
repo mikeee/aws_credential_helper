@@ -5,10 +5,13 @@ import (
 	"errors"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/hashicorp/go-retryablehttp"
+	"sync"
 )
 
 type CredentialProvider struct {
 	httpClient *retryablehttp.Client
+
+	mutex sync.RWMutex
 
 	signer Signer
 
@@ -62,8 +65,17 @@ func NewCredentialProvider(ctx context.Context, authInput CredentialProviderInpu
 	}, nil
 }
 
-func (c *CredentialProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+func (c *CredentialProvider) ChangeSigner(signer Signer) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	// TODO: implement assertions here
+	c.signer = signer
+	return nil
+}
 
+func (c *CredentialProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	createSessionRequest := &CreateSessionRequest{
 		DurationSeconds: 0,
 		ProfileArn:      c.trustProfileArn,
