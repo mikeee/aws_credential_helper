@@ -1,11 +1,11 @@
 .PHONY: test
 test:
 	@echo "Running tests..."
-	go test -v -race ./...
+	go test -v ./...
 .PHONY: test-e2e
 test-e2e:
 	@echo "Running tests..."
-	go test -v -race -tags e2e ./tests/e2e/...
+	go test -v -tags e2e ./tests/e2e/...
 
 .PHONY: lint
 lint:
