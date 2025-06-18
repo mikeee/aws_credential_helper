@@ -43,7 +43,7 @@ func checkCredentialProviderInput(credentialProviderInput CredentialProviderInpu
 	return nil
 }
 
-func NewCredentialProvider(ctx context.Context, authInput CredentialProviderInput) (aws.CredentialsProvider, error) {
+func NewCredentialProvider(ctx context.Context, authInput CredentialProviderInput) (*CredentialProvider, error) {
 	if err := checkCredentialProviderInput(authInput); err != nil {
 		return nil, err
 	}
