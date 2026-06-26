@@ -64,17 +64,6 @@ func createCanonicalRequest(input *CreateSessionRequest, signer Signer) (*retrya
 	// Since the request does not have any query strings, use an empty string to create a blank line.
 	canonicalQueryString := ""
 
-	// Step 4 - CanonicalHeaders
-	headers := []string{
-		"content-type",
-		"host",
-		"x-amz-date",
-		"x-amz-x509",
-	}
-
-	// Step 5 - SignedHeaders which is a list of headers that are included in the signature
-	signedHeaders := strings.Join(headers, ";")
-
 	// Step 6 - Hash of the request payload
 	requestPayloadBytesHash := sha256.Sum256(requestPayloadBytes)
 
@@ -92,46 +81,56 @@ func createCanonicalRequest(input *CreateSessionRequest, signer Signer) (*retrya
 	if input.mockTime != nil {
 		amzTime = *input.mockTime
 	}
-	request.Header.Set("X-Amz-Date", amzTime)
-	request.Header.Set("X-Amz-X509", base64.StdEncoding.EncodeToString(signer.cert.Raw))
+	request.Header.Set(x_amz_date, amzTime)
+	request.Header.Set(x_amz_x509, base64.StdEncoding.EncodeToString(signer.cert.Raw))
 
-	/*
+	// Step 4 - CanonicalHeaders, lowercase and in sorted order. The optional
+	// x-amz-x509-chain header (intermediate CA certs) sorts immediately after
+	// x-amz-x509.
+	canonicalHeaderLines := []string{
+		"content-type:" + request.Header.Get("Content-Type"),
+		"host:" + request.Header.Get("Host"),
+		"x-amz-date:" + request.Header.Get(x_amz_date),
+		"x-amz-x509:" + request.Header.Get(x_amz_x509),
+	}
+	headers := []string{"content-type", "host", "x-amz-date", "x-amz-x509"}
 
-	   POST
-	   /sessions
+	chainHeader, err := signer.chainHeader()
+	if err != nil {
+		return nil, err
+	}
+	if chainHeader != "" {
+		request.Header.Set(x_amz_x509_chain, chainHeader)
+		canonicalHeaderLines = append(canonicalHeaderLines, "x-amz-x509-chain:"+chainHeader)
+		headers = append(headers, "x-amz-x509-chain")
+	}
 
-	   content-type:application/json
-	   host:rolesanywhere.us-east-1.amazonaws.com
-	   x-amz-date:20211103T120000Z
-	   x-amz-x509:{base64-encoded DER data}
+	// Step 5 - SignedHeaders which is a list of headers that are included in the signature
+	signedHeaders := strings.Join(headers, ";")
 
-	   content-type;host;x-amz-date;x-amz-x509
-	   e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-
-	*/
-	canonicalRequest := fmt.Sprintf(`%s
-%s
-%s
-content-type:%s
-host:%s
-x-amz-date:%s
-x-amz-x509:%s
-
-%s
-%x`,
-		request.Method,
+	// e.g.
+	//   POST
+	//   /sessions
+	//
+	//   content-type:application/json
+	//   host:rolesanywhere.us-east-1.amazonaws.com
+	//   x-amz-date:20211103T120000Z
+	//   x-amz-x509:{base64-encoded DER data}
+	//   [x-amz-x509-chain:{base64-encoded DER},...]
+	//
+	//   content-type;host;x-amz-date;x-amz-x509[;x-amz-x509-chain]
+	//   {hex sha256 of the payload}
+	canonicalRequest := strings.Join([]string{
+		method,
 		canonicalUri,
 		canonicalQueryString,
-		request.Header.Get("Content-Type"),
-		request.Header.Get("Host"),
-		request.Header.Get("X-Amz-Date"),
-		request.Header.Get("X-Amz-X509"),
+		strings.Join(canonicalHeaderLines, "\n"),
+		"", // blank line between the canonical headers and the signed headers
 		signedHeaders,
-		requestPayloadBytesHash[:], // hex encoded in the final string (lowercase)
-	)
+		fmt.Sprintf("%x", requestPayloadBytesHash[:]),
+	}, "\n")
 
-	alg := aws4_x509_ecdsa_sha256 // TODO: Replace with actual algorithm from signer
-	// TODO: Refactor this
+	alg := aws4_x509_ecdsa_sha256
 	credentialScope := fmt.Sprintf("%s/%s/rolesanywhere/aws4_request", amzTime[:8], input.region)
 
 	stringToSign, err := CreateStringToSign(alg, amzTime, credentialScope, canonicalRequest)
