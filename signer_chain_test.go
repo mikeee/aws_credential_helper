@@ -88,3 +88,17 @@ func TestChainHeader_ExceedsMaxDepth(t *testing.T) {
 	_, err = signer.chainHeader()
 	require.Error(t, err)
 }
+
+func TestChainHeader_NilOrEmptyCert(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	cert := testCert(t, key, "leaf")
+
+	// nil chain entry must error, not panic
+	_, err = NewSignerWithChain(cert, []*x509.Certificate{nil}, key).chainHeader()
+	require.Error(t, err)
+
+	// chain entry with no DER bytes must error, not panic
+	_, err = NewSignerWithChain(cert, []*x509.Certificate{{}}, key).chainHeader()
+	require.Error(t, err)
+}

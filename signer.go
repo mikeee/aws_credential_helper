@@ -62,6 +62,9 @@ func (s Signer) chainHeader() (string, error) {
 	}
 	parts := make([]string, len(s.chain))
 	for i, c := range s.chain {
+		if c == nil || len(c.Raw) == 0 {
+			return "", fmt.Errorf("certificate chain entry %d is nil or has no DER bytes", i)
+		}
 		parts[i] = base64.StdEncoding.EncodeToString(c.Raw)
 	}
 	return strings.Join(parts, ","), nil
