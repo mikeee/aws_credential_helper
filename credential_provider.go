@@ -11,16 +11,30 @@ import (
 )
 
 // accountIDFromARN extracts the account ID from an ARN of the form
-// arn:partition:service:region:account-id:resource (field index 4). Returns ""
-// for a malformed ARN, in which case the AWS SDK falls back to the standard
-// regional endpoint instead of account-based endpoint routing.
+// arn:partition:service:region:account-id:resource (field index 4). It returns
+// "" unless the input is a well-formed ARN whose account-id field is a 12-digit
+// AWS account number; returning "" makes the AWS SDK fall back to the standard
+// regional endpoint rather than account-based endpoint routing (better than
+// populating aws.Credentials.AccountID with an invalid value).
 func accountIDFromARN(arn string) string {
 	const accountIDField = 4
+	if !strings.HasPrefix(arn, "arn:") {
+		return ""
+	}
 	parts := strings.Split(arn, ":")
 	if len(parts) <= accountIDField {
 		return ""
 	}
-	return parts[accountIDField]
+	accountID := parts[accountIDField]
+	if len(accountID) != 12 {
+		return ""
+	}
+	for _, r := range accountID {
+		if r < '0' || r > '9' {
+			return ""
+		}
+	}
+	return accountID
 }
 
 type CredentialProvider struct {
