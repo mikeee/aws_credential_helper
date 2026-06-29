@@ -3,10 +3,39 @@ package aws_credential_helper
 import (
 	"context"
 	"errors"
+	"strings"
+	"sync"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/hashicorp/go-retryablehttp"
-	"sync"
 )
+
+// accountIDFromARN extracts the account ID from an ARN of the form
+// arn:partition:service:region:account-id:resource (field index 4). It returns
+// "" unless the input is a well-formed ARN whose account-id field is a 12-digit
+// AWS account number; returning "" makes the AWS SDK fall back to the standard
+// regional endpoint rather than account-based endpoint routing (better than
+// populating aws.Credentials.AccountID with an invalid value).
+func accountIDFromARN(arn string) string {
+	const accountIDField = 4
+	if !strings.HasPrefix(arn, "arn:") {
+		return ""
+	}
+	parts := strings.Split(arn, ":")
+	if len(parts) <= accountIDField {
+		return ""
+	}
+	accountID := parts[accountIDField]
+	if len(accountID) != 12 {
+		return ""
+	}
+	for _, r := range accountID {
+		if r < '0' || r > '9' {
+			return ""
+		}
+	}
+	return accountID
+}
 
 type CredentialProvider struct {
 	httpClient *retryablehttp.Client
@@ -104,7 +133,9 @@ func (c *CredentialProvider) Retrieve(ctx context.Context) (aws.Credentials, err
 		// Should be in the form of a timestamp / credentialset.
 		// credentials.
 		// expiration
-		AccountID: createSessionResponse.CredentialSet[0].AssumedRoleUser.Arn, // TODO: get the account id - not arn
-		// credentialset.assumedRoleUser.arn ?? TODO: Confirm this
+		// Account ID parsed from the assumed-role ARN
+		// (credentialSet.assumedRoleUser.arn) so the SDK's account-based
+		// endpoint routing (e.g. DynamoDB) works.
+		AccountID: accountIDFromARN(createSessionResponse.CredentialSet[0].AssumedRoleUser.Arn),
 	}, nil
 }
