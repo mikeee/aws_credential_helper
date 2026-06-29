@@ -1,0 +1,46 @@
+name: E2E Tests
+run-name: E2E Tests for PR #${{ inputs.pr_number }}
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to test
+        required: true
+        type: number
+
+jobs:
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+
+    env:
+      CGO_ENABLED: 0 # Explicitly disable CGO to ensure a pure Go build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: refs/pull/${{ inputs.pr_number }}/merge
+
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: './go.mod'
+
+      - name: Download deps
+        run: |
+          go mod download
+
+      - name: Test
+        env:
+          E2E_CERT: ${{ secrets.E2E_CERT }}
+          E2E_KEY: ${{ secrets.E2E_CERT_PRIVATE_KEY }}
+          E2E_ASSUME_ROLE_ARN: ${{ secrets.E2E_ASSUME_ROLE_ARN }}
+          E2E_TRUST_ANCHOR_ARN: ${{ secrets.E2E_TRUST_ANCHOR_ARN }}
+          E2E_TRUST_PROFILE_ARN: ${{ secrets.E2E_TRUST_PROFILE_ARN }}
+        run: |
+          make test-e2e
