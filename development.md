@@ -1,8 +1,8 @@
 # Tests
 
 The E2E tests use valid certificates and keys, stored as secrets accessible to the actions runners.
-In GitHub Actions, E2E tests are run manually from the `E2E Tests` workflow with a pull request number.
-The workflow checks out the PR merge ref and exposes E2E secrets, so only dispatch it for reviewed PRs.
+In GitHub Actions, E2E tests run daily at 06:00 UTC on the default branch and can also be run manually from the `E2E Tests` workflow with a pull request number.
+Manual runs check out the PR merge ref and expose E2E secrets, so only dispatch them for reviewed PRs.
 E2E tests can be run locally with the following ENV Vars set:
 
 ```
