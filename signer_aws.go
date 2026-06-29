@@ -10,13 +10,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/mikeee/aws_credential_helper/internal"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/mikeee/aws_credential_helper/internal"
 )
 
 func createSessionRequestURL(region string) (*url.URL, error) {
@@ -52,25 +53,17 @@ func createCanonicalRequest(input *CreateSessionRequest, signer Signer) (*retrya
 		return nil, fmt.Errorf("failed to create session request URL: %w", err)
 	}
 
-	// Task 1
-
-	// Step 1 - HttpRequestMethod as a verb that is an uppercase string e.g. POST
-	method := http.MethodPost // TODO: Assert that this is an uppercase method
-
-	// Step 2 - CanonicalUri creation which is the path before the query string delimiter
-	canonicalUri := createSessionUrl.Path
-
-	// Step 3 - CanonicalQueryString which is the query string part of the URL
+	// CanonicalQueryString which is the query string part of the URL
 	// Since the request does not have any query strings, use an empty string to create a blank line.
 	canonicalQueryString := ""
 
 	// Step 6 - Hash of the request payload
 	requestPayloadBytesHash := sha256.Sum256(requestPayloadBytes)
 
-	// Step 7 - Construct the finished canonical request - combining everything as a string.
-	// + Step 8 - Create a hash of the canonical request (UTF-8 encoded) using SHA256,
+	// Construct the finished canonical request, combine everything as a string and
+	// create a hash of the canonical request (UTF-8 encoded) using SHA256,
 	// TODO: Propagate context
-	request, err := retryablehttp.NewRequest(method, createSessionUrl.String(), bytes.NewReader(requestPayloadBytes))
+	request, err := retryablehttp.NewRequest(http.MethodPost, createSessionUrl.String(), bytes.NewReader(requestPayloadBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -84,7 +77,7 @@ func createCanonicalRequest(input *CreateSessionRequest, signer Signer) (*retrya
 	request.Header.Set(x_amz_date, amzTime)
 	request.Header.Set(x_amz_x509, base64.StdEncoding.EncodeToString(signer.cert.Raw))
 
-	// Step 4 - CanonicalHeaders, lowercase and in sorted order. The optional
+	// CanonicalHeaders must be lowercase and in sorted order. The optional
 	// x-amz-x509-chain header (intermediate CA certs) sorts immediately after
 	// x-amz-x509.
 	canonicalHeaderLines := []string{
@@ -105,7 +98,7 @@ func createCanonicalRequest(input *CreateSessionRequest, signer Signer) (*retrya
 		headers = append(headers, "x-amz-x509-chain")
 	}
 
-	// Step 5 - SignedHeaders which is a list of headers that are included in the signature
+	// SignedHeaders is a list of headers that are to be included in the signature
 	signedHeaders := strings.Join(headers, ";")
 
 	// e.g.
@@ -121,8 +114,8 @@ func createCanonicalRequest(input *CreateSessionRequest, signer Signer) (*retrya
 	//   content-type;host;x-amz-date;x-amz-x509[;x-amz-x509-chain]
 	//   {hex sha256 of the payload}
 	canonicalRequest := strings.Join([]string{
-		method,
-		canonicalUri,
+		http.MethodPost,
+		createSessionUrl.Path,
 		canonicalQueryString,
 		strings.Join(canonicalHeaderLines, "\n"),
 		"", // blank line between the canonical headers and the signed headers
@@ -151,8 +144,6 @@ func createCanonicalRequest(input *CreateSessionRequest, signer Signer) (*retrya
 }
 
 func CreateStringToSign(algorithm, requestDateTime, credentialSCope, canonicalRequest string) (string, error) {
-	// Task 2
-
 	// Assert Algorithm is in the format AWS4-X509-[ALGORITHM]-SHA256
 	// We only use SHA256 for now, so the algorithm will be AWS4-X509-[ALGORITHM]-SHA256
 	matchedAlg, err := regexp.Match("AWS4-X509-[\\w]+-SHA256", []byte(algorithm))
@@ -190,8 +181,6 @@ func CreateStringToSign(algorithm, requestDateTime, credentialSCope, canonicalRe
 }
 
 func CalculateSignature(stringToSign string, signer Signer) (string, error) {
-	// Task 3
-
 	// Generate a signature
 	signatureHash := sha256.Sum256([]byte(stringToSign))
 
@@ -211,8 +200,6 @@ func CalculateSignature(stringToSign string, signer Signer) (string, error) {
 }
 
 func BuildAuthorizationHeader(algorithm, serialNumber, scope, signedHeaders, signature string) string {
-	// Task 4
-
 	return algorithm + " " +
 		"Credential=" + serialNumber + "/" + scope + ", " +
 		"SignedHeaders=" + signedHeaders + ", " +
